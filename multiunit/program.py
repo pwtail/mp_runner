@@ -9,7 +9,9 @@ import fasteners
 import multiprocessing as mp
 
 lock = fasteners.InterProcessLock('.multiunit.lock')
+
 worker_info = ContextVar('worker_id')
+test_counter = ContextVar('test_counter', default=0)
 
 
 class WorkerInfo(typing.NamedTuple):
@@ -31,21 +33,19 @@ class TestRunner(unittest.TextTestRunner):
 class TestLoader(unittest.TestLoader):
 
     def loadTestsFromTestCase(self, testCaseClass):
-        name = f'{testCaseClass.__module__}.{testCaseClass.__name__}'
-        hash = sum(ord(x) for x in name)
-
-        worker_id, count = worker_info.get()
-
-        if hash % int(count) == int(worker_id) - 1:
+        counter = test_counter.get()
+        test_counter.set(counter + 1)
+        worker_id, workers = worker_info.get()
+        if counter % workers == worker_id:
             return super().loadTestsFromTestCase(testCaseClass)
-        return ()
+        return unittest.TestSuite()
 
 
 class TestProgram(unittest.TestProgram):
     initialized = False
 
-    def __init__(self, *args, module=None, testLoader=TestLoader(), **kwargs):
-        super().__init__(*args, module=module, testLoader=testLoader, **kwargs)
+    def __init__(self, *args, testLoader=TestLoader(), **kwargs):
+        super().__init__(*args, testLoader=testLoader, **kwargs)
         self.initialized = True
 
     @property
@@ -56,25 +56,34 @@ class TestProgram(unittest.TestProgram):
 
     def _getParentArgParser(self):
         parser = super()._getParentArgParser()
-        parser.add_argument('--parallel', type=int, default=4,
+        parser.add_argument('--workers', type=int, default=4,
                             help='The number of worker processes')
+        parser.add_argument('--id', type=int, dest='workerid',
+                            help='Launch just the worker with given id')
         return parser
 
 
-def work(id, argv):
-    program = TestProgram(argv=argv)
-    info = WorkerInfo(id, program.parallel)
+def work(id, argv, count):
+    info = WorkerInfo(id, count)
     worker_info.set(info)
+    program = TestProgram(argv=argv, module=None)
     program.runTests()
 
 
 def main():
     (program := TestProgram()).parseArgs(sys.argv)
-    count = program.parallel
-    with mp.Pool(count) as pool:
-        args = itertools.product(
-            range(count), [sys.argv]
-        )
-        pool.starmap(work, args)
-
-    print('end')
+    count = program.workers
+    if workerid := program.workerid:
+        work(workerid, sys.argv, count)
+        sys.exit(0) #TODO
+    args = itertools.product(
+        range(count), [sys.argv], [count]
+    )
+    procs = [
+        mp.Process(target=work, args=args)
+        for args in args
+    ]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
