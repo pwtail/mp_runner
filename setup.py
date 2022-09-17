@@ -14,4 +14,4 @@ setup(name="multiunit",
 
 #TODO load_tests
 #TODO allow to specify id
-#TODO printing in proper order
+#TODO printing in proper order, messages
