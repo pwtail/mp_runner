@@ -2,12 +2,12 @@
 from setuptools import setup, find_packages
 
 setup(name="multiunit",
-      version="0.1.0",
+      version="0.1.1",
       author="Vitalii Abetkin",
       author_email="abvit89s@gmail.ru",
       packages=find_packages(),
-      description="mp",
-      long_description="mp",
+      description="Launch unittest in multiple processes",
+      long_description="Launch unittest in multiple processes",
       license="MIT",
       classifiers=())
 
@@ -15,3 +15,5 @@ setup(name="multiunit",
 #TODO load_tests
 #TODO allow to specify id
 #TODO printing in proper order, messages
+
+#TODO sqlite

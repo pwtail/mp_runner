@@ -5,10 +5,8 @@ import typing
 import unittest
 from contextvars import ContextVar
 
-import fasteners
 import multiprocessing as mp
 
-lock = fasteners.InterProcessLock('.multiunit.lock')
 
 worker_info = ContextVar('worker_id')
 test_counter = ContextVar('test_counter', default=0)
@@ -19,11 +17,7 @@ class WorkerInfo(typing.NamedTuple):
     count: int
 
 
-class TestResult(unittest.TextTestResult):
-
-    def printErrors(self):
-        with lock:
-            super().printErrors()
+TestResult = unittest.TextTestResult
 
 
 class TestRunner(unittest.TextTestRunner):
@@ -44,8 +38,11 @@ class TestLoader(unittest.TestLoader):
 class TestProgram(unittest.TestProgram):
     initialized = False
 
-    def __init__(self, *args, testLoader=TestLoader(), **kwargs):
-        super().__init__(*args, testLoader=testLoader, **kwargs)
+    def __init__(self, *args,
+                 testLoader=TestLoader(),
+                 testRunner=TestRunner,
+                 **kwargs):
+        super().__init__(*args, testLoader=testLoader, testRunner=testRunner, **kwargs)
         self.initialized = True
 
     @property
